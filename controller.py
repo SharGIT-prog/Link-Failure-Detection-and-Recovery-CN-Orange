@@ -24,8 +24,7 @@ LOG = logging.getLogger(__name__)
 LOG.setLevel(logging.INFO)
 
 # Suppress verbose Ryu loggers
-for logger_name in ['ryu.base.app_manager', 'ryu.controller.controller',
-                     'ryu.ofproto.ofproto_parser', 'ryu.topology', 'mininet']:
+for logger_name in ['ryu.base.app_manager', 'ryu.controller.controller', 'ryu.ofproto.ofproto_parser', 'ryu.topology', 'mininet']:
     logging.getLogger(logger_name).setLevel(logging.ERROR)
 
 
@@ -36,8 +35,7 @@ class SDNController(app_manager.RyuApp):
     def __init__(self, *args, **kwargs):
         super(SDNController, self).__init__(*args, **kwargs)
         self.mac_to_port = {}                    # dpid -> {mac: port}
-        self.active_links = set()                # (src_dpid,
-src_port, dst_dpid, dst_port)
+        self.active_links = set()                # (src_dpid, src_port, dst_dpid, dst_port)
         self.down_links = set()                  # Failed links
         self.datapaths = {}                      # dpid -> datapath object
         self.failed_ports = defaultdict(list)    # dpid -> [failed ports]
@@ -46,8 +44,7 @@ src_port, dst_dpid, dst_port)
 
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
-        """Install table-miss flow entry to send unmatched packets to
-controller."""
+        """Install table-miss flow entry to send unmatched packets to controller."""
         datapath = ev.msg.datapath
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
@@ -59,21 +56,17 @@ controller."""
 
         # Install table-miss flow entry
         match = parser.OFPMatch()
-        actions = [parser.OFPActionOutput(ofproto.OFPP_CONTROLLER,
-ofproto.OFPCML_NO_BUFFER)]
-        self.add_flow(datapath, 0, match, actions, idle_timeout=0,
-hard_timeout=0)
+        actions = [parser.OFPActionOutput(ofproto.OFPP_CONTROLLER, ofproto.OFPCML_NO_BUFFER)]
+        self.add_flow(datapath, 0, match, actions, idle_timeout=0, hard_timeout=0)
 
         LOG.info('[SWITCH_CONNECT] Switch DPID=%s connected', hex(dpid))
 
-    def add_flow(self, datapath, priority, match, actions,
-idle_timeout=15, hard_timeout=0):
+    def add_flow(self, datapath, priority, match, actions, idle_timeout=15, hard_timeout=0):
         """Install a flow rule in the switch."""
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
 
-        inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS,
-actions)]
+        inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions)]
         mod = parser.OFPFlowMod(
             datapath=datapath,
             priority=priority,
@@ -84,8 +77,7 @@ actions)]
             command=ofproto.OFPFC_ADD
         )
         datapath.send_msg(mod)
-        LOG.debug('[FLOW_INSTALL] DPID=%s Priority=%d',
-hex(datapath.id), priority)
+        LOG.debug('[FLOW_INSTALL] DPID=%s Priority=%d', hex(datapath.id), priority)
 
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def packet_in_handler(self, ev):
@@ -109,8 +101,7 @@ hex(datapath.id), priority)
         # MAC Learning
         if src not in self.mac_to_port[dpid]:
             self.mac_to_port[dpid][src] = in_port
-            LOG.info('[MAC_LEARN] DPID=%s MAC %s on port %d',
-hex(dpid), src, in_port)
+            LOG.info('[MAC_LEARN] DPID=%s MAC %s on port %d', hex(dpid), src, in_port)
 
         # Routing Decision
         if dst == 'ff:ff:ff:ff:ff:ff':  # Broadcast
@@ -129,8 +120,7 @@ hex(dpid), src, in_port)
         actions = [parser.OFPActionOutput(out_port)]
         if out_port != ofproto.OFPP_FLOOD and out_port != in_port:
             match = parser.OFPMatch(in_port=in_port, eth_dst=dst, eth_src=src)
-            self.add_flow(datapath, 10, match, actions,
-idle_timeout=15, hard_timeout=0)
+            self.add_flow(datapath, 10, match, actions, idle_timeout=15, hard_timeout=0)
 
         # Send Packet Out
         out = parser.OFPPacketOut(
@@ -150,8 +140,7 @@ idle_timeout=15, hard_timeout=0)
                 if path and len(path) > 1:
                     out_port = path[0][1]
                     if out_port is not None:
-                        LOG.info('[ROUTING] Found alternate path via
-port %d', out_port)
+                        LOG.info('[ROUTING] Found alternate path via port %d', out_port)
                         return out_port
 
         LOG.debug('[ROUTING] No path found, flooding')
@@ -164,8 +153,7 @@ port %d', out_port)
             graph[src_dpid].append((dst_dpid, src_port, dst_port))
             graph[dst_dpid].append((src_dpid, dst_port, src_port))
 
-        LOG.debug('[TOPOLOGY] Graph: %d switches, %d links',
-len(graph), len(self.active_links))
+        LOG.debug('[TOPOLOGY] Graph: %d switches, %d links', len(graph), len(self.active_links))
         return graph
 
     def dijkstra_shortest_path(self, start_dpid, end_dpid):
@@ -195,8 +183,7 @@ len(graph), len(self.active_links))
                         previous[neighbor] = (current, outport)
 
         if distances[end_dpid] == float('inf'):
-            LOG.warning('[ROUTING] No path from %s to %s',
-hex(start_dpid), hex(end_dpid))
+            LOG.warning('[ROUTING] No path from %s to %s', hex(start_dpid), hex(end_dpid))
             return None
 
         path = []
@@ -225,20 +212,16 @@ hex(start_dpid), hex(end_dpid))
     def link_add_handler(self, ev):
         """Handle link discovery or restoration."""
         link = ev.link
-        link_key = (link.src.dpid, link.src.port_no, link.dst.dpid,
-link.dst.port_no)
+        link_key = (link.src.dpid, link.src.port_no, link.dst.dpid, link.dst.port_no)
 
         self.active_links.add(link_key)
 
         if link_key in self.down_links:
             self.down_links.remove(link_key)
-            LOG.critical('[LINK_RESTORED] Link %s->%s is UP',
-hex(link.src.dpid), hex(link.dst.dpid))
-            self.on_link_restored(link.src.dpid, link.src.port_no,
-link.dst.dpid, link.dst.port_no)
+            LOG.critical('[LINK_RESTORED] Link %s->%s is UP', hex(link.src.dpid), hex(link.dst.dpid))
+            self.on_link_restored(link.src.dpid, link.src.port_no, link.dst.dpid, link.dst.port_no)
         else:
-            LOG.info('[LINK_DISCOVERED] Link %s->%s discovered',
-hex(link.src.dpid), hex(link.dst.dpid))
+            LOG.info('[LINK_DISCOVERED] Link %s->%s discovered', hex(link.src.dpid), hex(link.dst.dpid))
 
     @set_ev_cls(topo_event.EventLinkDelete)
     def link_delete_handler(self, ev):
@@ -270,31 +253,25 @@ hex(link.src.dpid), hex(link.dst.dpid))
         LOG.critical('[RECOVERY_START] Starting link recovery procedure')
 
         # Clear flow rules ONLY - keep MAC tables intact!
-        # Reason: If MACs are cleared on the switch with hosts (e.g.,
-s3 has h2),
-        # the destination location will be lost, and routing via
-alternate paths cannot take place.
+        # Reason: If MACs are cleared on the switch with hosts (e.g., s3 has h2),
+        # the destination location will be lost, and routing via alternate paths cannot take place.
 
         if src_dpid in self.datapaths:
             self.clear_flow_rules(self.datapaths[src_dpid], src_dpid)
-            LOG.warning('[RECOVERY_FLOWS] Cleared flows on DPID=%s
-(link side 1)', hex(src_dpid))
+            LOG.warning('[RECOVERY_FLOWS] Cleared flows on DPID=%s (link side 1)', hex(src_dpid))
 
         if dst_dpid in self.datapaths:
             self.clear_flow_rules(self.datapaths[dst_dpid], dst_dpid)
-            LOG.warning('[RECOVERY_FLOWS] Cleared flows on DPID=%s
-(link side 2)', hex(dst_dpid))
+            LOG.warning('[RECOVERY_FLOWS] Cleared flows on DPID=%s (link side 2)', hex(dst_dpid))
 
-        LOG.critical('[RECOVERY_COMPLETE] Recovery initiated - next
-packets will use alternate paths')
+        LOG.critical('[RECOVERY_COMPLETE] Recovery initiated - next packets will use alternate paths')
 
     def clear_mac_entries(self, dpid):
         """Clear MAC entries to force re-learning."""
         if dpid in self.mac_to_port:
             count = len(self.mac_to_port[dpid])
             self.mac_to_port[dpid].clear()
-            LOG.warning('[CLEAR_MACS] Cleared %d MAC entries on
-DPID=%s', count, hex(dpid))
+            LOG.warning('[CLEAR_MACS] Cleared %d MAC entries on DPID=%s', count, hex(dpid))
 
     def clear_flow_rules(self, datapath, dpid):
         """Clear flow rules to enable rerouting (keep table-miss)."""
