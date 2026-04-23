@@ -1,6 +1,6 @@
 # controller.py
 """
-SDN Controller:
+Minimal SDN Controller:
 - Topology Monitoring (detect topology changes)
 - Link Failure Detection (detect link failures)
 - Dynamic Routing (update flows based on topology)
@@ -24,12 +24,12 @@ LOG = logging.getLogger(__name__)
 LOG.setLevel(logging.INFO)
 
 # Suppress verbose Ryu loggers
-for logger_name in ['ryu.base.app_manager', 'ryu.controller.controller', 'ryu.ofproto.ofproto_parser', 'ryu.topology', 'mininet']:
+for logger_name in ['ryu.base.app_manager', 'ryu.controller.controller', 
+                     'ryu.ofproto.ofproto_parser', 'ryu.topology', 'mininet']:
     logging.getLogger(logger_name).setLevel(logging.ERROR)
 
 
 class SDNController(app_manager.RyuApp):
-
     OFP_VERSIONS = [ofproto_v1_3.OFP_VERSION]
 
     def __init__(self, *args, **kwargs):
@@ -39,9 +39,9 @@ class SDNController(app_manager.RyuApp):
         self.down_links = set()                  # Failed links
         self.datapaths = {}                      # dpid -> datapath object
         self.failed_ports = defaultdict(list)    # dpid -> [failed ports]
-
+        
         LOG.info('[INIT] SDN Controller initialized')
-
+        
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
         """Install table-miss flow entry to send unmatched packets to controller."""
@@ -53,7 +53,7 @@ class SDNController(app_manager.RyuApp):
         self.datapaths[dpid] = datapath
         self.mac_to_port.setdefault(dpid, {})
         self.failed_ports.setdefault(dpid, [])
-
+        
         # Install table-miss flow entry
         match = parser.OFPMatch()
         actions = [parser.OFPActionOutput(ofproto.OFPP_CONTROLLER, ofproto.OFPCML_NO_BUFFER)]
@@ -142,7 +142,7 @@ class SDNController(app_manager.RyuApp):
                     if out_port is not None:
                         LOG.info('[ROUTING] Found alternate path via port %d', out_port)
                         return out_port
-
+        
         LOG.debug('[ROUTING] No path found, flooding')
         return ofproto.OFPP_FLOOD
 
@@ -152,7 +152,7 @@ class SDNController(app_manager.RyuApp):
         for src_dpid, src_port, dst_dpid, dst_port in self.active_links:
             graph[src_dpid].append((dst_dpid, src_port, dst_port))
             graph[dst_dpid].append((src_dpid, dst_port, src_port))
-
+        
         LOG.debug('[TOPOLOGY] Graph: %d switches, %d links', len(graph), len(self.active_links))
         return graph
 
@@ -160,13 +160,13 @@ class SDNController(app_manager.RyuApp):
         """Find shortest path using Dijkstra's algorithm."""
         if start_dpid == end_dpid:
             return [(start_dpid, None)]
-
+        
         graph = self.build_topology_graph()
         distances = {dpid: float('inf') for dpid in graph}
         distances[start_dpid] = 0
         previous = {dpid: None for dpid in graph}
         unvisited = set(graph.keys())
-
+        
         while unvisited:
             current = min(unvisited, key=lambda x: distances[x])
             if distances[current] == float('inf'):
@@ -174,18 +174,18 @@ class SDNController(app_manager.RyuApp):
             if current == end_dpid:
                 break
             unvisited.remove(current)
-
+            
             for neighbor, outport, inport in graph[current]:
                 if neighbor in unvisited:
                     new_dist = distances[current] + 1
                     if new_dist < distances[neighbor]:
                         distances[neighbor] = new_dist
                         previous[neighbor] = (current, outport)
-
+        
         if distances[end_dpid] == float('inf'):
             LOG.warning('[ROUTING] No path from %s to %s', hex(start_dpid), hex(end_dpid))
             return None
-
+        
         path = []
         current = end_dpid
         while previous[current] is not None:
@@ -193,7 +193,7 @@ class SDNController(app_manager.RyuApp):
             path.insert(0, (prev_dpid, outport))
             current = prev_dpid
         path.append((end_dpid, None))
-
+        
         LOG.info('[ROUTING] Path found: %d hops', len(path))
         return path
 
@@ -213,9 +213,9 @@ class SDNController(app_manager.RyuApp):
         """Handle link discovery or restoration."""
         link = ev.link
         link_key = (link.src.dpid, link.src.port_no, link.dst.dpid, link.dst.port_no)
-
+        
         self.active_links.add(link_key)
-
+        
         if link_key in self.down_links:
             self.down_links.remove(link_key)
             LOG.critical('[LINK_RESTORED] Link %s->%s is UP', hex(link.src.dpid), hex(link.dst.dpid))
@@ -231,39 +231,39 @@ class SDNController(app_manager.RyuApp):
         src_port = link.src.port_no
         dst_dpid = link.dst.dpid
         dst_port = link.dst.port_no
-
+        
         link_key = (src_dpid, src_port, dst_dpid, dst_port)
-
+        
         self.active_links.discard(link_key)
         self.down_links.add(link_key)
-
+        
         if src_port not in self.failed_ports[src_dpid]:
             self.failed_ports[src_dpid].append(src_port)
         if dst_port not in self.failed_ports[dst_dpid]:
             self.failed_ports[dst_dpid].append(dst_port)
-
+        
         LOG.critical('[LINK_FAILURE] *** LINK DOWN ***')
-        LOG.critical('[LINK_DOWN] %s(port %d) <-> %s(port %d)',
+        LOG.critical('[LINK_DOWN] %s(port %d) <-> %s(port %d)', 
                     hex(src_dpid), src_port, hex(dst_dpid), dst_port)
-
+        
         self.initiate_recovery(src_dpid, src_port, dst_dpid, dst_port)
 
     def initiate_recovery(self, src_dpid, src_port, dst_dpid, dst_port):
         """Initiate recovery when link fails."""
         LOG.critical('[RECOVERY_START] Starting link recovery procedure')
-
+        
         # Clear flow rules ONLY - keep MAC tables intact!
         # Reason: If MACs are cleared on the switch with hosts (e.g., s3 has h2),
         # the destination location will be lost, and routing via alternate paths cannot take place.
-
+        
         if src_dpid in self.datapaths:
             self.clear_flow_rules(self.datapaths[src_dpid], src_dpid)
             LOG.warning('[RECOVERY_FLOWS] Cleared flows on DPID=%s (link side 1)', hex(src_dpid))
-
+        
         if dst_dpid in self.datapaths:
             self.clear_flow_rules(self.datapaths[dst_dpid], dst_dpid)
             LOG.warning('[RECOVERY_FLOWS] Cleared flows on DPID=%s (link side 2)', hex(dst_dpid))
-
+        
         LOG.critical('[RECOVERY_COMPLETE] Recovery initiated - next packets will use alternate paths')
 
     def clear_mac_entries(self, dpid):
@@ -277,9 +277,10 @@ class SDNController(app_manager.RyuApp):
         """Clear flow rules to enable rerouting (keep table-miss)."""
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
-
+        
         try:
             match = parser.OFPMatch()
+            # Clear priority 10 learned flows
             mod = parser.OFPFlowMod(
                 datapath=datapath,
                 command=ofproto.OFPFC_DELETE,
@@ -303,3 +304,7 @@ class SDNController(app_manager.RyuApp):
             LOG.warning('[PORTS_AVAILABLE] Ports are now available for routing')
         except Exception as e:
             LOG.error('[RESTORE_ERROR] %s', str(e))
+
+
+
+
