@@ -49,7 +49,7 @@ def create_simple_topology():
     # Hosts to switches
     net.addLink(h1, s1)
     net.addLink(h2, s2)
-
+    
     # Switch to switch (simple linear)
     net.addLink(s1, s2)
 
@@ -108,11 +108,11 @@ def create_triangle_topology():
     # Hosts to switches
     net.addLink(h1, s1)
     net.addLink(h2, s3)
-
-    # Switch interconnection
+    
+    # Switch interconnection  
     net.addLink(s1, s2)
     net.addLink(s2, s3)
-    net.addLink(s1, s3)
+    net.addLink(s1, s3)  
 
     print("\n[5] Building and starting network")
     net.build()
@@ -136,14 +136,14 @@ def create_triangle_topology():
 
 def run():
     """Main function to start topology and CLI."""
-
+    
     # Choose which topology to use
     print("\n[SELECT TOPOLOGY]")
-    print("1. Simple Linear ")
+    print("1. Simple Linear (h1-s1-s2-h2)")
     print("2. Triangle (with redundancy) - For link failure testing")
-
+    
     choice = input("\nEnter choice (1 or 2) [default: 1]: ").strip()
-
+    
     if choice == '2':
         net = create_triangle_topology()
     else:
@@ -160,5 +160,8 @@ def run():
 if __name__ == '__main__':
     # Use 'output' level to show clean CLI output without verbose logs
     setLogLevel('output')
-
+    
     run()
+
+
+
