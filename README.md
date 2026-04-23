@@ -75,6 +75,8 @@ alternate path between nodes.
 ## PROOF OF EXECUTION –
 
 **LINEAR TOPOLOGY**
+
+
 ![Description of image](screenshot/0.png)
 
 Controller output, shows how the paths are being learnt
@@ -115,7 +117,11 @@ This is the wireshark output-
 
 ![Description of image](screenshot/10.png)
 
+
+
 **TRIANGULAR TOPOLOGY**
+
+
 ![Description of image](screenshot/12.png)
 
 Flow table has no installed rules.
